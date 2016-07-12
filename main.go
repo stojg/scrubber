@@ -11,25 +11,27 @@ import (
 	"strings"
 )
 
-type dataMaker struct {
+
+type randByteMaker struct {
 	src rand.Source
 }
 
-func (r *dataMaker) Read(p []byte) (n int, err error) {
+func (r *randByteMaker) Read(p []byte) (n int, err error) {
 	for i := range p {
-		p[i] = byte(r.src.Int63() & 0xff)
+		p[i] = byte(r.src.Int63() & 0xff) // mask to only the first 255 byte values
 	}
 	return len(p), nil
 }
 
+// Directories is a named type of []string that is a Sortable so that we can
+// sort this in the order of length of the string, with the longest strings first
 type Directories []string
-
 func (a Directories) Len() int           { return len(a) }
 func (a Directories) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a Directories) Less(i, j int) bool { return len(a[i]) > len(a[j]) }
 
 var (
-	randomiser  *dataMaker
+	randomiser  *randByteMaker
 	fileCounter int
 	baseFolder  string
 	directories Directories
@@ -42,7 +44,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	randomiser = &dataMaker{rand.NewSource(1028890720402726901)}
+	randomiser = &randByteMaker{
+		rand.NewSource(983492849394),
+	}
 
 	baseFolder = args[0]
 
@@ -56,7 +60,6 @@ func main() {
 	err := filepath.Walk(baseFolder, fileMangler)
 	if err != nil {
 		fmt.Printf("error: %v\n", err)
-		os.Exit(1)
 	}
 
 	fmt.Printf("\nAnonymising folders\n\n")
@@ -72,7 +75,6 @@ func main() {
 		fmt.Printf("%s renamed to %s\n", dirPath, newName)
 		if err := os.Rename(dirPath, newName); err != nil {
 			fmt.Printf("err: %s\n", err)
-			os.Exit(1)
 		}
 	}
 }
