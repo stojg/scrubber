@@ -40,7 +40,7 @@ var (
 func main() {
 	args := os.Args[1:]
 	if len(args) != 1 {
-		fmt.Println("Usage: randomiser ./path/to/folder")
+		fmt.Println("Usage: scrubber ./path/to/folder")
 		os.Exit(1)
 	}
 
