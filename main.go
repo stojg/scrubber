@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"math/rand"
@@ -8,9 +9,22 @@ import (
 	"path"
 	"path/filepath"
 	"sort"
-	"strings"
+	. "strings"
+	"time"
 )
 
+var (
+	flagForce   = flag.Bool("f", false, "force, don't ask for confirmation, assume yes")
+	flagVerbose = flag.Bool("v", false, "verbose, show actions for all files")
+	flagDryRun  = flag.Bool("d", false, "dry run, displays the operations that would be performed without actually running them")
+)
+
+var (
+	byteMaker     *randByteMaker
+	fileCounter   int
+	baseDirectory string
+	directories   Directories
+)
 
 type randByteMaker struct {
 	src rand.Source
@@ -26,60 +40,72 @@ func (r *randByteMaker) Read(p []byte) (n int, err error) {
 // Directories is a named type of []string that is a Sortable so that we can
 // sort this in the order of length of the string, with the longest strings first
 type Directories []string
+
 func (a Directories) Len() int           { return len(a) }
 func (a Directories) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a Directories) Less(i, j int) bool { return len(a[i]) > len(a[j]) }
 
-var (
-	randomiser  *randByteMaker
-	fileCounter int
-	baseFolder  string
-	directories Directories
-)
-
 func main() {
-	args := os.Args[1:]
-	if len(args) != 1 {
-		fmt.Println("Usage: scrubber ./path/to/folder")
+
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "usage: %s [-f | -v | -d ] ./path/to/directory\n", os.Args[0])
+		flag.PrintDefaults()
+	}
+	flag.Parse()
+
+	baseDirectory = flag.Arg(0)
+	if info, err := os.Stat(baseDirectory); err != nil || !info.IsDir() {
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%s\n\n", err)
+		} else {
+			fmt.Fprintf(os.Stderr, "%s is not a directory\n\n", baseDirectory)
+		}
+		flag.Usage()
 		os.Exit(1)
 	}
 
-	randomiser = &randByteMaker{
-		rand.NewSource(983492849394),
+	byteMaker = &randByteMaker{
+		rand.NewSource(time.Now().Unix()),
 	}
 
-	baseFolder = args[0]
-
-	fmt.Printf("This is a very destructive action that will overwrite every file in '%s'\n", baseFolder)
-	if !askForConfirmation() {
-		return
+	if !*flagForce {
+		fmt.Printf("This is a very destructive action that will overwrite every file in '%s'\n", baseDirectory)
+		if !askForConfirmation() {
+			return
+		}
 	}
 
-	fmt.Printf("\nAnonymising files\n\n")
-
-	err := filepath.Walk(baseFolder, fileMangler)
-	if err != nil {
-		fmt.Printf("error: %v\n", err)
+	fmt.Printf("Scrubbing files\n")
+	if err := filepath.Walk(baseDirectory, fileScrubber); err != nil {
+		fmt.Printf("\n%s\n", err)
+		os.Exit(1)
 	}
+	fmt.Printf("\nScrubbed %d files\n", fileCounter)
 
-	fmt.Printf("\nAnonymising folders\n\n")
-
-	// sort folders in the order of string size so we rename "child" folder
-	// first
+	fmt.Printf("\nScrubbing directories\n")
+	// sort folders in the order of string size so we rename the leaf "child"
+	// folders first
 	sort.Sort(directories)
-	for i, dirPath := range directories {
-		if dirPath == baseFolder {
+	for i, currentPath := range directories {
+		if currentPath == baseDirectory {
 			continue
 		}
-		newName := fmt.Sprintf("%s/dir_%d%s", path.Dir(dirPath), i+1, path.Ext(dirPath))
-		fmt.Printf("%s renamed to %s\n", dirPath, newName)
-		if err := os.Rename(dirPath, newName); err != nil {
-			fmt.Printf("err: %s\n", err)
+		newPath := fmt.Sprintf("%s/dir_%d", path.Dir(currentPath), i+1)
+		if *flagVerbose {
+			fmt.Printf("renaming %s to %s\n", currentPath, newPath)
+		} else {
+			fmt.Print(".")
+		}
+		if !*flagDryRun {
+			if err := os.Rename(currentPath, newPath); err != nil {
+				fmt.Printf("err: %s\n", err)
+			}
 		}
 	}
+	fmt.Printf("\nScrubbed %d directories\n", len(directories))
 }
 
-func fileMangler(filePath string, f os.FileInfo, err error) error {
+func fileScrubber(filePath string, f os.FileInfo, err error) error {
 	if err != nil {
 		return err
 	}
@@ -91,7 +117,7 @@ func fileMangler(filePath string, f os.FileInfo, err error) error {
 	mode := f.Mode()
 
 	if !mode.IsRegular() {
-		fmt.Printf("%s skipped because not regulary file", filePath)
+		fmt.Printf("\n%s skipped because not regular file\n", filePath)
 		return nil
 	}
 
@@ -101,18 +127,27 @@ func fileMangler(filePath string, f os.FileInfo, err error) error {
 	}
 	defer out.Close()
 
-	fmt.Printf("%s overwriting with %d bytes\n", filePath, f.Size())
-	if _, err = io.CopyN(out, randomiser, f.Size()); err != nil {
-		return err
+	if *flagVerbose {
+		fmt.Printf("scrubbing %s with %d bytes\n", filePath, f.Size())
+	}
+	if !*flagDryRun {
+		if _, err = io.CopyN(out, byteMaker, f.Size()); err != nil {
+			return err
+		}
 	}
 
 	fileCounter++
 	newName := fmt.Sprintf("%s/file_%d%s", path.Dir(filePath), fileCounter, path.Ext(filePath))
-	fmt.Printf("%s renamed to %s\n", filePath, newName)
-	if err := os.Rename(filePath, newName); err != nil {
-		return err
+	if *flagVerbose {
+		fmt.Printf("renaming %s to %s\n", filePath, newName)
+	} else {
+		fmt.Print(".")
 	}
-
+	if !*flagDryRun {
+		if err := os.Rename(filePath, newName); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -124,11 +159,10 @@ func askForConfirmation() bool {
 		fmt.Printf("Error: %s", err)
 		os.Exit(1)
 	}
-	if strings.ToLower(string(response[0])) == "y" {
+	if HasPrefix(ToLower(response), "y") {
 		return true
-	} else if strings.ToLower(string(response[0])) == "n" {
+	} else if HasPrefix(ToLower(response), "n") {
 		return false
 	}
-
 	return askForConfirmation()
 }

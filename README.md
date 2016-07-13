@@ -21,9 +21,12 @@ folders. You have been warned.
 ## Usage
 
 ```
-scrubber ./path/to/data/to/scrub
+usage: scrubber [-f | -v | -d ] ./path/to/directory
+  -d	dry run, displays the operations that would be performed without actually running them
+  -f	force, don't ask for confirmation, assume yes
+  -v	verbose, show actions for all files
+```
 
 ## Todo
 
 - Faster random byte generation
-- Dry run option
