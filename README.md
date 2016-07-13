@@ -6,17 +6,16 @@ Scrubber will anonymise files and folder by
 - renaming folders to dir_(integer)
 - overwrite files with random data to the same size as the original had
 
-Note that this tool is not made for wiping hardrives since it only write random
-data once and specialised tools should be used for that purpose.
+Note that this tool is not made for securely wiping hardrives, specialised 
+tools should be used for that purpose.
 
 This tool is usefull to create test data from real data that can be used for
 load testing, performance testing etc.
 
 ## Warning ##
 
-If you haven't already realised it, this will program will kill files and,
-folders. You have been warned.
-
+If you haven't already realised it, this machine kills files and folders. 
+You have been warned.
 
 ## Usage
 
