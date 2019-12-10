@@ -20,12 +20,13 @@ var (
 )
 
 var (
-	byteMaker     *randByteMaker
+	randomReader  *randByteMaker
 	fileCounter   int
 	baseDirectory string
 	directories   Directories
 )
 
+// randByteMaker wraps a rand.Source with Read() so that is can be used as a io.Reader
 type randByteMaker struct {
 	src rand.Source
 }
@@ -48,7 +49,7 @@ func (a Directories) Less(i, j int) bool { return len(a[i]) > len(a[j]) }
 func main() {
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: %s [-f | -v | -d ] ./path/to/directory\n", os.Args[0])
+		_, _ = fmt.Fprintf(os.Stderr, "usage: %s [-f | -v | -d ] ./path/to/directory\n", os.Args[0])
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -56,15 +57,15 @@ func main() {
 	baseDirectory = flag.Arg(0)
 	if info, err := os.Stat(baseDirectory); err != nil || !info.IsDir() {
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "%s\n\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "%s\n\n", err)
 		} else {
-			fmt.Fprintf(os.Stderr, "%s is not a directory\n\n", baseDirectory)
+			_, _ = fmt.Fprintf(os.Stderr, "%s is not a directory\n\n", baseDirectory)
 		}
 		flag.Usage()
 		os.Exit(1)
 	}
 
-	byteMaker = &randByteMaker{
+	randomReader = &randByteMaker{
 		rand.NewSource(time.Now().Unix()),
 	}
 
@@ -131,7 +132,7 @@ func fileScrubber(filePath string, f os.FileInfo, err error) error {
 		fmt.Printf("scrubbing %s with %d bytes\n", filePath, f.Size())
 	}
 	if !*flagDryRun {
-		if _, err = io.CopyN(out, byteMaker, f.Size()); err != nil {
+		if _, err = io.CopyN(out, randomReader, f.Size()); err != nil {
 			return err
 		}
 	}
