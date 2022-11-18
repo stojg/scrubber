@@ -9,7 +9,7 @@ Scrubber will anonymise files and folder by
 Note that this tool is not made for securely wiping hardrives, specialised 
 tools should be used for that purpose.
 
-This tool is usefull to create test data from real data that can be used for
+This tool is useful for creating test data from real data that can be used for
 load testing, performance testing etc.
 
 ## Warning ##
